@@ -40,6 +40,37 @@ npm run dev     # tsx watch on $PORT
 npm run build && npm start
 ```
 
+## Deploy (same VPS as the dashboard, shared Caddy)
+
+This repo ships a `Dockerfile` + `docker-entrypoint.sh`; the **dashboard's**
+`docker-compose.yml` + `Caddyfile` orchestrate both apps behind one Caddy.
+
+1. On the VPS, clone this repo as a **sibling** of the dashboard repo (the
+   dashboard compose builds it via `build: ../chat-widget`):
+   ```
+   /srv/voiceagent      (dashboard repo)
+   /srv/chat-widget     (this repo)
+   ```
+2. Point a subdomain (e.g. `chat.yourdomain.com`) at the VPS. It's already in
+   the dashboard's `Caddyfile` (`reverse_proxy widget:3020`); Caddy issues the
+   cert automatically.
+3. In the dashboard's gitignored `.env` (next to its `docker-compose.yml`) add:
+   ```
+   WIDGET_SERVICE_SECRET=<same secret you generate in the dashboard's
+                          Admin Settings → Chat Widget Service>
+   WIDGET_ENCRYPTION_KEY=<64 hex chars, for conversation encryption at rest>
+   ```
+4. From the dashboard repo: `docker compose up -d --build`.
+
+The service reaches the dashboard over the internal Docker network
+(`DASHBOARD_URL=http://app:3000`), so config/tool/lead calls never leave the
+host. The **public** URL (`https://chat.yourdomain.com`) is what goes in the
+dashboard's Chat Widget Service "base URL" and what client sites load.
+
+For a standalone host or a PaaS instead, run this repo's own container with the
+four env vars from `.env.example` and a persistent volume mounted at the
+`DATABASE_PATH` directory.
+
 ## Notes
 
 - Requires a Node version with `node:sqlite` (Node 22+).
