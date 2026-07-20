@@ -9,12 +9,16 @@ export interface WidgetBranding {
   agentName: string;
   accentColor: string;
   greeting: string;
+  logoUrl: string;
+  tagline: string;
 }
 
 export interface BusinessWidgetConfig {
   anthropicApiKey: string;
   model: string;
   branding: WidgetBranding;
+  // Clickable starter prompts shown under the greeting.
+  quickPrompts: string[];
   systemPromptExtras: string;
   allowedOrigins: string[];
   embedKey: string;
@@ -45,7 +49,10 @@ function normalize(data: unknown): BusinessWidgetConfig | null {
       agentName: typeof branding.agentName === "string" ? branding.agentName : "Assistant",
       accentColor: typeof branding.accentColor === "string" ? branding.accentColor : "#2563eb",
       greeting: typeof branding.greeting === "string" ? branding.greeting : "Hi! How can I help?",
+      logoUrl: typeof branding.logoUrl === "string" ? branding.logoUrl : "",
+      tagline: typeof branding.tagline === "string" ? branding.tagline : "",
     },
+    quickPrompts: Array.isArray(d.quickPrompts) ? d.quickPrompts.filter((p): p is string => typeof p === "string") : [],
     systemPromptExtras: typeof d.systemPromptExtras === "string" ? d.systemPromptExtras : "",
     allowedOrigins: Array.isArray(d.allowedOrigins) ? d.allowedOrigins.filter((o): o is string => typeof o === "string") : [],
     embedKey: typeof d.embedKey === "string" ? d.embedKey : "",

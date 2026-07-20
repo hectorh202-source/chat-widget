@@ -70,7 +70,9 @@ widgetRouter.get("/app", async (req: Request, res: Response) => {
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline'",
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data:",
+      // https: so a business can point the header logo at an image hosted on
+      // their own site (see chatWidget.logoUrl) — images only, no scripts.
+      "img-src 'self' data: https:",
       "connect-src 'self'",
       "base-uri 'self'",
       "form-action 'self'",
@@ -86,7 +88,14 @@ widgetRouter.get("/app", async (req: Request, res: Response) => {
     return;
   }
   const key = typeof req.query.key === "string" ? req.query.key : "";
-  res.send(generateWidgetApp({ apiBase: `/b/${businessId}/widget`, embedKey: key, branding: config.branding }));
+  res.send(
+    generateWidgetApp({
+      apiBase: `/b/${businessId}/widget`,
+      embedKey: key,
+      branding: config.branding,
+      quickPrompts: config.quickPrompts,
+    }),
+  );
 });
 
 widgetRouter.post("/session", limitSession, async (req: Request, res: Response) => {
@@ -144,8 +153,10 @@ widgetRouter.post("/message", limitMessage, async (req: Request, res: Response) 
       return;
     }
     console.error("widget message failed:", err instanceof Error ? err.message : err);
+    // No em dash: this fallback goes straight to the visitor without passing
+    // through engine.humanizeReply(), so it has to be clean at the source.
     res.status(502).json({
-      reply: "Sorry — I ran into a problem. Please try again, or leave your name and number and we'll follow up.",
+      reply: "Sorry, I ran into a problem. Please try again, or leave your name and number and we'll follow up.",
     });
   }
 });

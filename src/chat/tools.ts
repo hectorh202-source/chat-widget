@@ -194,7 +194,7 @@ export async function executeChatTool(
               d.confirmationMessage ??
               (succeeded
                 ? "A team member will confirm your appointment shortly."
-                : "Thanks — a team member will follow up with you directly."),
+                : "Thanks, a team member will follow up with you directly."),
           }),
           capturedVisitor: { name: lead.name, phone: lead.phone },
           resolution: {
@@ -209,7 +209,7 @@ export async function executeChatTool(
         return {
           content: JSON.stringify({
             success: false,
-            confirmationMessage: "Thanks — a team member will follow up with you directly.",
+            confirmationMessage: "Thanks, a team member will follow up with you directly.",
           }),
           capturedVisitor: { name: lead.name, phone: lead.phone },
           resolution: { kind: "lead", success: false, servicetitanJobId: null, servicetitanLeadId: null, lead },
@@ -234,7 +234,7 @@ export async function executeChatTool(
             content: JSON.stringify({
               success: false,
               needsDifferentTime: true,
-              confirmationMessage: d.confirmationMessage ?? "That time isn't available — let's pick another.",
+              confirmationMessage: d.confirmationMessage ?? "That time isn't available, let's pick another.",
             }),
             capturedVisitor: { name: lead.name, phone: lead.phone },
           };
@@ -262,7 +262,7 @@ export async function executeChatTool(
         return {
           content: JSON.stringify({
             success: false,
-            confirmationMessage: "Thanks — a team member will follow up with you directly to schedule.",
+            confirmationMessage: "Thanks, a team member will follow up with you directly to schedule.",
           }),
           capturedVisitor: { name: lead.name, phone: lead.phone },
           resolution: { kind: "lead", success: false, servicetitanJobId: null, servicetitanLeadId: null, lead },
