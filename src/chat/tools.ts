@@ -1,4 +1,4 @@
-import { callDashboardTool, type BusinessWidgetConfig } from "../dashboardClient";
+import { callDashboardTool, searchDashboardKnowledge, type BusinessWidgetConfig } from "../dashboardClient";
 import type { AnthropicToolDefinition } from "./anthropicClient";
 
 // ---------------------------------------------------------------------------
@@ -15,6 +15,22 @@ const lookupCustomerTool: AnthropicToolDefinition = {
     type: "object",
     properties: { phone: { type: "string", description: "The visitor's phone number, any format." } },
     required: ["phone"],
+  },
+};
+
+// Deliberately prescriptive about WHEN to call it: the failure mode we're
+// preventing is the model answering a pricing/policy/coverage question from
+// general knowledge instead of this business's actual documents.
+const searchKnowledgeTool: AnthropicToolDefinition = {
+  name: "search_knowledge_base",
+  description:
+    "Search this business's own knowledge base for facts about services offered, pricing, hours, service area, policies, warranties, and common questions. Call this BEFORE answering any question about what this business does, charges, covers, or how it operates — never answer those from general knowledge. Use short keyword queries ('water heater replacement cost', 'weekend hours', 'service area'), not full sentences. Returns relevant excerpts, or nothing if the knowledge base doesn't cover it.",
+  input_schema: {
+    type: "object",
+    properties: {
+      query: { type: "string", description: "Short keyword query, not a full sentence." },
+    },
+    required: ["query"],
   },
 };
 
@@ -72,7 +88,9 @@ const bookJobTool: AnthropicToolDefinition = {
 };
 
 export function chatToolDefinitions(bookingMode: "lead" | "job"): AnthropicToolDefinition[] {
-  const tools = [lookupCustomerTool, checkAvailabilityTool, createLeadTool];
+  // search_knowledge_base is always available — it's independent of booking
+  // mode, and a business may have knowledge configured but no ServiceTitan.
+  const tools = [searchKnowledgeTool, lookupCustomerTool, checkAvailabilityTool, createLeadTool];
   if (bookingMode === "job") tools.push(bookJobTool);
   return tools;
 }
@@ -148,6 +166,25 @@ export async function executeChatTool(
   const secret = config.toolWebhookSecret;
 
   switch (name) {
+    case "search_knowledge_base": {
+      const results = await searchDashboardKnowledge(businessId, str(input, "query") ?? "", 5);
+      if (results.length === 0) {
+        return {
+          content: JSON.stringify({
+            results: [],
+            note: "The knowledge base has nothing on this. Do not answer from general knowledge, and do not guess. Say you'll have a team member confirm, and offer to take their details.",
+          }),
+        };
+      }
+      // Only title + text goes back to the model; ids and BM25 scores are
+      // retrieval plumbing it has no use for.
+      return {
+        content: JSON.stringify({
+          results: results.map((r) => ({ source: r.title, excerpt: r.content })),
+        }),
+      };
+    }
+
     case "lookup_customer": {
       const phone = str(input, "phone") ?? "";
       try {

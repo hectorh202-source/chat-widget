@@ -93,6 +93,42 @@ export async function getBusinessConfig(businessId: number): Promise<BusinessWid
   }
 }
 
+export interface KnowledgeHit {
+  documentId: number;
+  title: string;
+  chunkIndex: number;
+  content: string;
+  score: number;
+}
+
+// Retrieval for the search_knowledge_base tool. The knowledge base lives in the
+// dashboard (it's shared with the voice agent), so the widget queries it rather
+// than holding its own copy. A POST so the visitor's question stays out of URL
+// query strings and access logs. Failures degrade to "no results" — the chat
+// should continue and say a team member will confirm, never break.
+export async function searchDashboardKnowledge(
+  businessId: number,
+  query: string,
+  limit = 5,
+): Promise<KnowledgeHit[]> {
+  try {
+    const res = await axios.post(
+      `${env.DASHBOARD_URL}/api/widget-service/businesses/${businessId}/knowledge/search`,
+      { query, limit },
+      {
+        headers: { "X-Widget-Service-Secret": env.WIDGET_SERVICE_SECRET, "content-type": "application/json" },
+        timeout: 10_000,
+        validateStatus: () => true,
+      },
+    );
+    if (res.status !== 200) return [];
+    const data = res.data as { results?: unknown };
+    return Array.isArray(data.results) ? (data.results as KnowledgeHit[]) : [];
+  } catch {
+    return [];
+  }
+}
+
 export interface DashboardToolResult {
   status: number;
   data: unknown;
