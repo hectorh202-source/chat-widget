@@ -5,6 +5,7 @@ interface WidgetAppParams {
   embedKey: string;
   branding: WidgetBranding;
   quickPrompts: string[];
+  poweredBy: { name: string; url: string };
 }
 
 // Derives a lighter/darker variant of the business's accent colour so the UI
@@ -40,6 +41,8 @@ export function generateWidgetApp(params: WidgetAppParams): string {
     tagline: params.branding.tagline,
     logoUrl: params.branding.logoUrl,
     quickPrompts: params.quickPrompts.slice(0, 6),
+    poweredByName: params.poweredBy.name,
+    poweredByUrl: params.poweredBy.url,
   });
   const accent = params.branding.accentColor || "#2563eb";
   const accentDark = shade(accent, -0.14); // gradient end / text on tint
@@ -179,7 +182,11 @@ export function generateWidgetApp(params: WidgetAppParams): string {
   #send:hover:not(:disabled){transform:translateY(-1px);}
   #send:disabled{opacity:.4;cursor:default;}
   #send svg{width:16px;height:16px;}
-  .legal{text-align:center;font-size:10.5px;color:#a0a8b4;margin-top:7px;}
+  .legal{text-align:center;font-size:10.5px;color:#a0a8b4;margin-top:7px;
+    display:flex;align-items:center;justify-content:center;gap:5px;flex-wrap:wrap;}
+  .legal a{color:#8b94a3;text-decoration:none;font-weight:600;transition:color .15s ease;}
+  .legal a:hover{color:var(--accent-dark);text-decoration:underline;}
+  .legal .sep{opacity:.55;}
 
   @media (max-width:420px){ .stack{max-width:85%;} }
 </style>
@@ -233,7 +240,23 @@ export function generateWidgetApp(params: WidgetAppParams): string {
   } else {
     tagEl.style.display = "none";
   }
-  document.getElementById("legal").textContent = "AI assistant • responses may need confirming";
+  /* Footer: AI disclaimer, plus the operator's "Powered by" referral link
+     when one is configured. Built with DOM nodes (never innerHTML). */
+  var legal = document.getElementById("legal");
+  legal.appendChild(document.createTextNode("AI assistant"));
+  if (CFG.poweredByName) {
+    var sep = document.createElement("span"); sep.className = "sep"; sep.textContent = "·";
+    legal.appendChild(sep);
+    if (CFG.poweredByUrl) {
+      var a = document.createElement("a");
+      a.href = CFG.poweredByUrl;
+      a.target = "_blank"; a.rel = "noopener noreferrer";
+      a.textContent = "Powered by " + CFG.poweredByName;
+      legal.appendChild(a);
+    } else {
+      legal.appendChild(document.createTextNode("Powered by " + CFG.poweredByName));
+    }
+  }
   function fillAvatar(el, size){
     if (CFG.logoUrl) {
       var img = document.createElement("img");

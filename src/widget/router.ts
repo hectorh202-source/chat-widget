@@ -94,6 +94,7 @@ widgetRouter.get("/app", async (req: Request, res: Response) => {
       embedKey: key,
       branding: config.branding,
       quickPrompts: config.quickPrompts,
+      poweredBy: config.poweredBy,
     }),
   );
 });

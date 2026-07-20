@@ -19,6 +19,9 @@ export interface BusinessWidgetConfig {
   branding: WidgetBranding;
   // Clickable starter prompts shown under the greeting.
   quickPrompts: string[];
+  // The platform operator's attribution shown in the widget footer (global on
+  // the dashboard, identical for every business). Blank name = show nothing.
+  poweredBy: { name: string; url: string };
   systemPromptExtras: string;
   allowedOrigins: string[];
   embedKey: string;
@@ -42,6 +45,7 @@ function normalize(data: unknown): BusinessWidgetConfig | null {
   // Anthropic key — treat that (and anything missing the key) as "unavailable".
   if (!d || d.enabled !== true || typeof d.anthropicApiKey !== "string" || !d.anthropicApiKey) return null;
   const branding = (d.branding as Record<string, unknown>) ?? {};
+  const pb = (d.poweredBy as Record<string, unknown>) ?? {};
   return {
     anthropicApiKey: d.anthropicApiKey,
     model: typeof d.model === "string" ? d.model : "claude-opus-4-8",
@@ -53,6 +57,10 @@ function normalize(data: unknown): BusinessWidgetConfig | null {
       tagline: typeof branding.tagline === "string" ? branding.tagline : "",
     },
     quickPrompts: Array.isArray(d.quickPrompts) ? d.quickPrompts.filter((p): p is string => typeof p === "string") : [],
+    poweredBy: {
+      name: typeof pb.name === "string" ? pb.name : "",
+      url: typeof pb.url === "string" ? pb.url : "",
+    },
     systemPromptExtras: typeof d.systemPromptExtras === "string" ? d.systemPromptExtras : "",
     allowedOrigins: Array.isArray(d.allowedOrigins) ? d.allowedOrigins.filter((o): o is string => typeof o === "string") : [],
     embedKey: typeof d.embedKey === "string" ? d.embedKey : "",
