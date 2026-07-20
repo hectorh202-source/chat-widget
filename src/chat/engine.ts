@@ -65,7 +65,7 @@ export async function runChatTurn(
     messages.push({ role: "user", content: toolResults });
   }
 
-  const reply = extractText([...messages].reverse().find((m) => m.role === "assistant"));
+  const reply = humanizeReply(extractText([...messages].reverse().find((m) => m.role === "assistant")));
 
   updateChatTranscript(businessId, conversationId, messages, capturedVisitor);
 
@@ -74,6 +74,21 @@ export async function runChatTurn(
   }
 
   return { reply };
+}
+
+// Guarantees no em/en dashes reach the visitor even if the model slips one in
+// despite the prompt (LLMs are stubborn about em dashes). Only the em (—) and
+// en (–) dash characters are touched — ordinary hyphens in words and phone
+// numbers use a different character (-) and are left alone. Applied only to the
+// visible reply; the stored transcript keeps the model's raw text so the
+// Anthropic message history stays valid for the next turn.
+function humanizeReply(text: string): string {
+  return text
+    .replace(/\s*[—–]\s*/g, ", ") // em/en dash → natural comma break
+    .replace(/,\s*,/g, ", ") // collapse doubled commas
+    .replace(/,\s*([.!?])/g, "$1") // fix ", ." → "."
+    .replace(/[ \t]{2,}/g, " ") // collapse doubled spaces
+    .trim();
 }
 
 function extractText(message: AnthropicMessage | undefined): string {
