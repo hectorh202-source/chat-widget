@@ -40,6 +40,14 @@ export interface CreateMessageOptions {
   maxTokens?: number;
 }
 
+// Adaptive thinking and output_config.effort are Claude 4.6-and-later
+// features. Older models (Haiku 4.5) reject both with a 400, so the request
+// body has to be built per model rather than assumed — sending the Opus shape
+// to every model is what made every non-Opus selection error out.
+function supportsAdaptiveThinking(model: string): boolean {
+  return !model.startsWith("claude-haiku-4-5");
+}
+
 export async function createMessage(opts: CreateMessageOptions): Promise<AnthropicResponse> {
   const response = await axios.post<AnthropicResponse>(
     ANTHROPIC_MESSAGES_URL,
@@ -51,9 +59,11 @@ export async function createMessage(opts: CreateMessageOptions): Promise<Anthrop
       tools: opts.tools,
       // Adaptive thinking + low effort keeps a website-chat turn snappy and
       // cheap; thinking is internal (never shown), echoed back via the
-      // persisted transcript.
-      thinking: { type: "adaptive" },
-      output_config: { effort: "low" },
+      // persisted transcript. On models without it, plain no-thinking is the
+      // right fallback anyway — those are the "fastest / cheapest" tier.
+      ...(supportsAdaptiveThinking(opts.model)
+        ? { thinking: { type: "adaptive" }, output_config: { effort: "low" } }
+        : {}),
     },
     {
       headers: {
