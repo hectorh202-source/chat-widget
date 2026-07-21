@@ -51,6 +51,7 @@ export function buildChatSystemPrompt(
     "- If the search returns nothing on a business specific, say you don't see it listed and a team member will confirm, then offer to take their details. Don't guess, and don't let a general explanation turn into an implied promise about price, coverage, or timing.",
     "- Never make up prices, guarantees, availability, or policies. If you don't know something, say a team member will confirm.",
     "- Only offer appointment times that check_availability returned.",
+    "- As you learn concrete details about the request (the service type, how urgent it is, preferred timing, the specific problem, equipment make/age), record them with update_state so staff can triage at a glance. Do this quietly in the background; keep the conversation natural and don't mention that you're taking notes.",
     "",
     "Booking policy:",
     bookingPolicy,

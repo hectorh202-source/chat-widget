@@ -4,7 +4,7 @@ import {
   type AnthropicMessage,
   type AnthropicContentBlock,
 } from "./anthropicClient";
-import { chatToolDefinitions, executeChatTool, type ChatResolution } from "./tools";
+import { chatToolDefinitions, executeChatTool, collectStateFields, type ChatResolution } from "./tools";
 import { buildChatSystemPrompt } from "./prompt";
 import { getChatConversation, updateChatTranscript, resolveChatConversation } from "../db/chatConversations";
 import { postDashboardLead, type BusinessWidgetConfig } from "../dashboardClient";
@@ -131,6 +131,10 @@ async function writeInboxLead(
   const transcript = renderTranscript(messages);
   const lead = resolution.lead;
   const message = [lead.message, "--- Chat transcript ---\n" + transcript].filter(Boolean).join("\n\n");
+  // Everything the model recorded via update_state over the whole conversation,
+  // merged. Sent as structured data the dashboard stores and renders as a list,
+  // separate from the free-text message/transcript.
+  const structuredFields = collectStateFields(messages);
 
   await postDashboardLead(businessId, config.leadIntakeWebhookSecret, {
     source: "website_chat",
@@ -143,6 +147,7 @@ async function writeInboxLead(
     email: lead.email ?? capturedVisitor.email,
     address: lead.address,
     message,
+    ...(structuredFields.length ? { structuredFields } : {}),
   });
 
   resolveChatConversation(businessId, conversationId, booked ? "booked" : "lead", {

@@ -1,5 +1,5 @@
 import { callDashboardTool, searchDashboardKnowledge, type BusinessWidgetConfig } from "../dashboardClient";
-import type { AnthropicToolDefinition } from "./anthropicClient";
+import type { AnthropicToolDefinition, AnthropicContentBlock } from "./anthropicClient";
 
 // ---------------------------------------------------------------------------
 // Tool schemas exposed to Claude. Identical to the dashboard's, but here the
@@ -31,6 +31,35 @@ const searchKnowledgeTool: AnthropicToolDefinition = {
       query: { type: "string", description: "Short keyword query, not a full sentence." },
     },
     required: ["query"],
+  },
+};
+
+// Lets the model record structured facts about the request as it learns them
+// (service type, urgency, preferred timing, equipment details, etc.). These
+// ride along with the lead into the dashboard and render as a labeled list for
+// staff, separate from the chat transcript. Free-form label/value pairs rather
+// than a fixed schema, since every trade needs different fields.
+const updateStateTool: AnthropicToolDefinition = {
+  name: "update_state",
+  description:
+    "Record structured details about this request as you learn them, so staff see them at a glance instead of reading the whole chat. Call this whenever you pin down a concrete fact worth capturing — service type, urgency, preferred timing, the specific problem, equipment make/age, or anything else that helps triage. Call it again to add or correct fields as the conversation develops; re-sending a label overwrites its previous value. Use short, human-readable labels (e.g. 'Service type', 'Urgency', 'Preferred time').",
+  input_schema: {
+    type: "object",
+    properties: {
+      fields: {
+        type: "array",
+        description: "The facts to record. Each is a label and its value.",
+        items: {
+          type: "object",
+          properties: {
+            label: { type: "string", description: "Short human-readable field name, e.g. 'Service type'." },
+            value: { type: "string", description: "The value for this field." },
+          },
+          required: ["label", "value"],
+        },
+      },
+    },
+    required: ["fields"],
   },
 };
 
@@ -88,11 +117,45 @@ const bookJobTool: AnthropicToolDefinition = {
 };
 
 export function chatToolDefinitions(bookingMode: "lead" | "job"): AnthropicToolDefinition[] {
-  // search_knowledge_base is always available — it's independent of booking
-  // mode, and a business may have knowledge configured but no ServiceTitan.
-  const tools = [searchKnowledgeTool, lookupCustomerTool, checkAvailabilityTool, createLeadTool];
+  // search_knowledge_base and update_state are always available — independent
+  // of booking mode (a business may have knowledge but no ServiceTitan, and
+  // structured details are worth capturing regardless of how a lead resolves).
+  const tools = [searchKnowledgeTool, updateStateTool, lookupCustomerTool, checkAvailabilityTool, createLeadTool];
   if (bookingMode === "job") tools.push(bookJobTool);
   return tools;
+}
+
+// A single collected field, as the model supplies it and as staff will see it.
+export interface CollectedField {
+  label: string;
+  value: string;
+}
+
+// Walks the whole transcript for update_state tool calls and merges them into
+// one ordered list: first appearance sets a label's position, later calls
+// overwrite its value (last-write-wins), matching the tool's documented
+// behavior. Reading straight from the transcript means the accumulated state
+// is always consistent with what actually happened — no separate store to keep
+// in sync.
+export function collectStateFields(messages: { role: string; content: unknown }[]): CollectedField[] {
+  const order: string[] = [];
+  const byLabel = new Map<string, string>();
+  for (const message of messages) {
+    if (message.role !== "assistant" || !Array.isArray(message.content)) continue;
+    for (const block of message.content as AnthropicContentBlock[]) {
+      if (block.type !== "tool_use" || block.name !== "update_state") continue;
+      const fields = (block.input as { fields?: unknown })?.fields;
+      if (!Array.isArray(fields)) continue;
+      for (const f of fields) {
+        const label = typeof f?.label === "string" ? f.label.trim() : "";
+        const value = typeof f?.value === "string" ? f.value.trim() : "";
+        if (!label || !value) continue;
+        if (!byLabel.has(label)) order.push(label);
+        byLabel.set(label, value);
+      }
+    }
+  }
+  return order.map((label) => ({ label, value: byLabel.get(label)! }));
 }
 
 // ---------------------------------------------------------------------------
@@ -183,6 +246,16 @@ export async function executeChatTool(
           results: results.map((r) => ({ source: r.title, excerpt: r.content })),
         }),
       };
+    }
+
+    case "update_state": {
+      // Pure state-recording: nothing to call, the fields are read back off the
+      // transcript at resolution time by collectStateFields. Just acknowledge
+      // so the model knows it landed and moves on.
+      const count = Array.isArray((input as { fields?: unknown }).fields)
+        ? (input.fields as unknown[]).length
+        : 0;
+      return { content: JSON.stringify({ recorded: true, count }) };
     }
 
     case "lookup_customer": {
